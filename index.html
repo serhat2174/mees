@@ -1,0 +1,651 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        #gameCanvas {
+            background: url('space.png') no-repeat center center fixed;
+            background-size: cover;
+            display: block;
+            margin: 0 auto;
+            cursor: none;
+        }
+        #startScreen {
+            background: url('space.png') no-repeat center center fixed;
+            background-size: cover;
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 9999;
+        }
+        #startButton {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            z-index: 9999;
+        }
+        #restartButton {
+            padding: 15px 30px;
+            font-size: 24px;
+            background-color: #4CAF50;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        #gameOverScreen h1 {
+            color: rgb(255, 255, 255); /* Change the color to your desired value */
+        }
+        #startScreen h1 {
+            color: rgb(255, 255, 255); /* Change the color to your desired value */
+        }
+    </style>
+</head>
+<body>
+    <div id="startScreen">
+        <img src="plane.png" alt="MEES">
+        <h1 style="text-align: center; font-size: 40px;">MEES</h1>
+        <p style="text-align: center; font-size: 22px; color: rgb(153, 191, 220);">- Methodical Enemy Eradication System -</p>
+
+        <button id="startButton">START</button>
+    </div>
+
+    <div id="gameOverScreen">
+        <img src="plane.png" alt="MEES">
+        <h1 style="text-align: center; font-size: 40px;">MEES</h1>
+        <p style="text-align: center; font-size: 22px; color: rgb(153, 191, 220);">- Methodical Enemy Eradication System -</p>
+        <button id="restartButton">START</button>
+    </div>
+
+    <canvas id="gameCanvas"></canvas>
+    <audio id="backgroundMusic" src="music.mp3" loop></audio>
+    <script>
+        var canvas = document.getElementById('gameCanvas');
+        var ctx = canvas.getContext('2d');
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+        var backgroundMusic = document.getElementById('backgroundMusic');
+        backgroundMusic.volume = 0.5;
+        var startScreen = document.getElementById('startScreen');
+        var startButton = document.getElementById('startButton');
+        startButton.addEventListener('click', startGame);
+
+        var gameOverScreen = document.getElementById('gameOverScreen');
+        var restartButton = document.getElementById('restartButton');
+        restartButton.addEventListener('click', restartGame);
+
+        var bonusImg = new Image();
+        bonusImg.src = 'bonus.png';
+        var bonus = {
+            x: 0,
+            y: 0,
+            size: 40,
+            img: bonusImg,
+            isActive: false,
+            speed: 2
+        };
+
+        var isGameStarted = false;
+        var isGameOver = false;
+
+        var playerImg = new Image();
+        playerImg.src = 'plane.png';
+        var player = {
+            x: canvas.width / 2,
+            y: canvas.height - 50,
+            speed: 8,
+            size: 80,
+            health: 1000,
+            img: playerImg
+        };
+
+        var explosions = [];
+        var explosionImg = new Image();
+        explosionImg.src = 'fire2.png';
+
+        var bulletImg = new Image();
+        bulletImg.src = 'bullet.png';
+        var bullets = [];
+
+        var enemyImg = new Image();
+        enemyImg.src = 'plane2.png';
+        var enemies = [];
+        var enemyTimer = 0;
+        var score = 0;
+        var level = 1;
+        var level2 = 1;
+        var minDamage = 20;
+        var maxDamage = 67;
+        var bonusDamage1 = 0;
+        var bonusDamage2 = 0;
+        var enemiesKilled = 0;
+        var experience = 0;
+        var experience2 = 0;
+        var maxExperience = 4000;
+        var bonusExp = 20;
+        var levelUpTextTimer = 0;
+        var levelUpTextColor = "#FF0000";
+        var levelUpTextStyle = "32px Arial";
+
+        // Background
+        var backgroundY = 0;
+        var backgroundImg = new Image();
+        backgroundImg.src = 'space.png';
+
+        // Shot sound
+        var shotSound = new Audio('shot.ogg');
+        shotSound.volume = 0.5;
+
+        // Shot sound
+        var shot2Sound = new Audio('shot3.ogg');
+        shot2Sound.volume = 0.5;
+
+        // Game over sound
+        var gameOverSound = new Audio('gover.wav');
+
+        // Score text style
+        var scoreTextStyle = "24px Arial";
+        var scoreTextColor = "#FFFFFF";
+
+        // Enemy bullet image
+        var enemyBulletImg = new Image();
+        enemyBulletImg.src = 'enemy_bullet.png';
+        var enemyBullets = [];
+
+        function startGame() {
+            isGameStarted = true;
+            startScreen.style.display = 'none';
+            canvas.style.display = 'block';
+            resetGame();
+            gameLoop();
+            backgroundMusic.play();
+        }
+
+        function restartGame() {
+            gameOverScreen.style.display = 'none';
+            startScreen.style.display = 'none';  // Hide the start screen
+            canvas.style.display = 'block';  // Show the game canvas
+            resetGame();
+            isGameStarted = true;
+            isGameOver = false;
+            gameLoop();
+            backgroundMusic.play();
+        }
+
+        function resetGame() {
+            player.health = 1000;
+            bullets = [];
+            enemies = [];
+            explosions = [];
+            enemyTimer = 0;
+            score = 0;
+            level = 1;
+            level2 = 1;
+            bonusDamage1 = 0;
+            bonusDamage2 = 0;
+            enemiesKilled = 0;
+            experience = 0;
+            experience2 = 0;
+            maxExperience = 4000;
+            changePlane2Image();
+            backgroundMusic.play();
+        }
+
+        function endGame() {
+            isGameOver = true;
+            isGameStarted = false;
+            gameOverScreen.style.display = 'flex';
+            gameOverSound.play();
+            backgroundMusic.pause();
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (isGameStarted) {
+                drawBackground();
+                updateGameObjects();
+                drawGameObjects();
+                drawScore();
+                drawLevel();
+                drawExperienceBar();
+                drawLevelUpText();
+                updateEnemyBullets();
+                drawEnemyBullets();
+                requestAnimationFrame(gameLoop);
+                
+                if (!bonus.isActive) {
+                    // Spawn a new bonus collectible after a certain interval
+                    if (Math.random() < 0.001) {
+                        spawnBonus();
+                    }
+                }
+            }
+        }
+
+        function drawBackground() {
+            var scale = Math.max(canvas.width / backgroundImg.width, canvas.height / backgroundImg.height);
+            var width = backgroundImg.width * scale;
+            var height = backgroundImg.height * scale;
+            var x = (canvas.width - width) / 2;
+            var y = (canvas.height - height) / 2;
+
+            ctx.drawImage(backgroundImg, x, y + backgroundY, width, height);
+            ctx.drawImage(backgroundImg, x, y + backgroundY - height, width, height);
+
+            backgroundY += 1;
+            if (backgroundY >= height) {
+                backgroundY = 0;
+            }
+        }
+
+        function updateGameObjects() {
+            player.x = mouseX - player.size / 2;
+            player.y = mouseY - player.size / 2;
+
+            for (var i = bullets.length - 1; i >= 0; i--) {
+                var b = bullets[i];
+
+                if (b.fadeDelay === 5) {
+                    b.y -= b.speed;
+                }
+
+                var hitEnemy = false;
+
+                for (var j = enemies.length - 1; j >= 0; j--) {
+                    var e = enemies[j];
+                    e.damageTextX = e.x + 12
+                    e.damageTextY = e.y + 60
+
+                    if (isPointInsideRect(b.x + b.size / 2, b.y + b.size / 2, e.x, e.y, e.size, e.size) && b.fadeDelay === 5) {
+                        e.health -= b.damage;
+                        e.damageTaken = b.damage;
+                        experience += e.damageTaken;
+                        experience2 += e.damageTaken; // Add damage dealt as score
+
+                        if (e.health <= 0) {
+                            enemies.splice(j, 1);
+                            enemiesKilled++;
+                            score += bonusExp;
+
+                            var explosionSound = new Audio('gover.wav');
+                            explosionSound.play();
+
+                            var explosion = {
+                                x: e.x,
+                                y: e.y,
+                                img: explosionImg,
+                                counter: 3,
+                                size: 150
+                            };
+                            explosions.push(explosion);
+                        }
+
+                        hitEnemy = true;
+                        e.damageCounter = 60;
+                        b.fadeDelay--;
+                        break;
+                    }
+                }
+
+                if (b.fadeDelay < 5) {
+                    b.fadeDelay--;
+                }
+                if (b.y < -10 || b.fadeDelay <= 0) {
+                    bullets.splice(i, 1);
+                }
+            }
+
+            // Check collision with bonus collectible
+            if (rectsCollide(player, bonus) && bonus.isActive) {
+                // Increase the damage of player's bullets
+                bonusDamage1 += Math.floor(Math.random() * (50 - 20 + 1)) + 20; // Increase bonusDamage1 randomly
+                bonusDamage2 += Math.floor(Math.random() * (80 - 20 + 1)) + 30; // Increase bonusDamage2 randomly
+                score += 100;
+                player.health += 100;
+                var bonusSound = new Audio('charge.wav');
+                bonusSound.play();
+                bonus.isActive = false;
+            }
+
+            if (bonus.isActive) {
+                bonus.y += bonus.speed;
+                if (bonus.y > canvas.height) {
+                    bonus.isActive = false;
+                }
+            }
+            for (var i = enemies.length - 1; i >= 0; i--) {
+                var e = enemies[i];
+                e.y += e.speed;
+
+                if (rectsCollide(e, player)) {
+                    player.health -= e.health;
+                    enemies.splice(i, 1);
+                    enemiesKilled++;
+                    score += bonusExp;
+                    experience += e.health;
+                    experience2 += e.health;
+                    var explosionSound = new Audio('gover.wav');
+                    explosionSound.play();
+
+                    var explosion = {
+                        x: e.x,
+                        y: e.y,
+                        img: explosionImg,
+                        counter: 3,
+                        size: 150
+                    };
+                    explosions.push(explosion);
+                }
+
+                // Check if it's time for the enemy to fire
+                if (Math.random() < 0.01) { // Adjust the probability as needed
+                    createEnemyBullet(e);
+                }
+            }
+
+            var baseTime = 100; // Set a base time for level 1
+            enemyTimer++;
+            if (enemyTimer > baseTime / (1 + (level - 1) / 2)) {
+                var e = {
+                    x: Math.random() * (canvas.width - 30),
+                    y: -10,
+                    speed: Math.random() * (1.5 * level - level) + level/2 +1, // Set speed as a random value between level and 2*level
+                    size: 50,
+                    img: enemyImg,
+                    health: 100 + ((level - 1) * 100) // Enemy health for each level
+                };
+                enemies.push(e);
+                enemyTimer = 0;
+            }
+
+            for (var i = explosions.length - 1; i >= 0; i--) {
+                var e = explosions[i];
+                e.counter--;
+                if (e.counter <= 0) {
+                    explosions.splice(i, 1);
+                }
+            }
+
+            for (var i = 0; i < enemies.length; i++) {
+                if (enemies[i].damageCounter > 0) {
+                    enemies[i].damageCounter--;
+                }
+            }
+
+            // Check if score reached next level threshold
+            if (score >= level * 400) {
+                level++;
+                changePlane2Image();
+            }
+
+            // Check if experience reached maximum
+            if (experience >= maxExperience) {
+                player.health += 100;
+                experience2 = 0;
+                maxExperience += experience; // Increase the maximum experience for next level
+                bonusDamage1 += Math.floor(Math.random() * (50 - 20 + 1)) + 20; // Increase bonusDamage1 randomly
+                bonusDamage2 += Math.floor(Math.random() * (80 - 20 + 1)) + 30; // Increase bonusDamage2 randomly
+                level2++;
+                showLevelUpText();
+            }
+
+            // Decrease the levelUpTextTimer
+            if (levelUpTextTimer > 0) {
+                levelUpTextTimer--;
+            }
+
+            // Check if player health is zero
+            if (player.health <= 0) {
+                endGame();
+            }
+        }
+        function isPointInsideRect(pointX, pointY, rectX, rectY, rectWidth, rectHeight) {
+            return (
+                pointX > rectX &&
+                pointX < rectX + rectWidth &&
+                pointY > rectY &&
+                pointY < rectY + rectHeight
+            );
+        }
+
+        function createEnemyBullet(enemy) {
+            var eb = {
+                x: enemy.x + enemy.size / 2 - 5,
+                y: enemy.y + enemy.size,
+                speed: 6,
+                size: 20,
+                img: enemyBulletImg,
+                damage: Math.floor(Math.random() * (maxDamage - minDamage + 1)) + minDamage
+            };
+            enemyBullets.push(eb);
+            shot2Sound.currentTime = 0; // Reset the shot sound
+            shot2Sound.volume = 0.5;
+            shot2Sound.play();
+            
+        }
+
+        function updateEnemyBullets() {
+            for (var i = enemyBullets.length - 1; i >= 0; i--) {
+                var eb = enemyBullets[i];
+                eb.y += eb.speed;
+
+                // Check collision with player
+                if (rectsCollide(eb, player)) {
+                    player.health -= eb.damage;
+                    enemyBullets.splice(i, 1);
+                    var explosionSound = new Audio('gover.wav');
+                    explosionSound.play();
+                    continue;
+                }
+
+                // Remove bullets that are off-screen
+                if (eb.y > canvas.height) {
+                    enemyBullets.splice(i, 1);
+                    continue;
+                }
+            }
+        }
+
+        function drawEnemyBullets() {
+            for (var i = 0; i < enemyBullets.length; i++) {
+                var eb = enemyBullets[i];
+                ctx.drawImage(eb.img, eb.x, eb.y, eb.size, eb.size);
+            }
+        }
+
+        function drawGameObjects() {
+            ctx.drawImage(player.img, player.x, player.y, player.size, player.size);
+
+            for (var i = 0; i < bullets.length; i++) {
+                var b = bullets[i];
+                ctx.drawImage(b.img, b.x, b.y, b.size, b.size);
+            }
+            // Draw bonus collectible if it is active
+            if (bonus.isActive) {
+                ctx.drawImage(bonus.img, bonus.x, bonus.y, bonus.size, bonus.size);
+            }
+            for (var i = 0; i < enemies.length; i++) {
+                var e = enemies[i];
+
+                ctx.drawImage(e.img, e.x, e.y, e.size, e.size);
+                // Display enemy health
+                ctx.fillStyle = "#FFFFFF";
+                ctx.font = "12px Arial";
+                ctx.fillText(e.health, e.x, e.y - 10);
+
+                // Display damage taken
+                if (e.damageCounter > 0) {
+                    ctx.fillStyle = "#FF0000";
+                    ctx.font = "16px Arial";
+                    ctx.fillText("-" + e.damageTaken, e.damageTextX, e.damageTextY);
+                }
+            }
+
+            for (var i = explosions.length - 1; i >= 0; i--) {
+                var e = explosions[i];
+                ctx.drawImage(e.img, e.x - 50, e.y - 90, e.size, e.size);
+            }
+
+            // Draw enemy bullets
+            drawEnemyBullets();
+
+            // Draw health bar
+            ctx.fillStyle = "#0000FF";
+            ctx.fillRect(50, 20, (player.health / 1000) * 200, 10);
+
+            // Draw green experience bar
+            ctx.fillStyle = scoreTextColor;
+            ctx.font = "16px Arial";
+            ctx.fillText("Exp: " + experience + " / " + maxExperience, 10, 60);
+            ctx.fillText("Level " + level2, 10, 90);
+            ctx.fillStyle = "#00FF00";
+            var experienceRatio = experience2 / maxExperience;
+            var barLength = Math.min(experienceRatio * 200, 200); // Limit the bar length to a maximum of 200
+            ctx.fillRect(10, 65, barLength, 5);
+
+            // Display player health
+            ctx.fillStyle = "#FFFFFF";
+            ctx.font = "16px Arial";
+            ctx.fillText(player.health, 10, 30);
+            ctx.fillText("Damage: (" + (minDamage + bonusDamage1) + "-" + (maxDamage + bonusDamage2) + ")", canvas.width / 2 - 50, canvas.height - 20);
+        }
+        function spawnBonus() {
+            // Set the position of the bonus collectible randomly on the canvas
+            bonus.x = Math.random() * (canvas.width - bonus.size);
+            bonus.y = -bonus.size; // Start the bonus collectible above the canvas
+            bonus.isActive = true;
+        }
+
+        function drawScore() {
+            ctx.fillStyle = scoreTextColor;
+            ctx.font = scoreTextStyle;
+            ctx.fillText("Score: " + score, canvas.width - 150, 30);
+        }
+
+        function drawLevel() {
+            ctx.fillStyle = scoreTextColor;
+            ctx.font = scoreTextStyle;
+            ctx.fillText("Stage " + level, canvas.width / 2 - 50, 30);
+        }
+
+        function drawExperienceBar() {
+            ctx.fillStyle = scoreTextColor;
+            ctx.font = "16px Arial";
+            ctx.fillText("Exp: " + experience + " / " + maxExperience, 10, 60);
+            ctx.fillText("Level " + level2, 10, 90);
+        }
+
+        function showLevelUpText() {
+            levelUpTextTimer = 30; // Show level up text for 60 frames
+        }
+
+        function drawLevelUpText() {
+            if (levelUpTextTimer > 0) {
+                ctx.fillStyle = levelUpTextColor;
+                ctx.font = levelUpTextStyle;
+                ctx.fillText("Level Up!", canvas.width / 2 - 70, canvas.height / 2);
+            }
+        }
+
+        function rectsCollide(a, b) {
+            return (
+                a.x < b.x + b.size &&
+                a.x + a.size > b.x &&
+                a.y < b.y + b.size &&
+                a.y + a.size > b.y
+            );
+        }
+
+        function changePlane2Image() {
+            var plane2Img = new Image();
+            if (level <= 10) {
+                plane2Img.src = 'plane' + level + '.png';
+            } else {
+                plane2Img.src = 'plane10.png';
+            }
+            enemyImg = plane2Img;
+        }
+
+        var mouseX = 0,
+            mouseY = 0;
+        canvas.onmousemove = function (e) {
+            mouseX = e.clientX - canvas.offsetLeft;
+            mouseY = e.clientY - canvas.offsetTop;
+        };
+
+        document.addEventListener('keydown', function (e) {
+            if (isGameOver) {
+                if (e.keyCode === 82) { // R key
+                    restartGame();
+                }
+            } else if (isGameStarted) {
+                if (e.keyCode === 27) { // ESC key
+                    startScreen.style.display = 'flex';
+                    canvas.style.display = 'none';
+                    isGameOver = false;
+                    isGameStarted = false;
+                    backgroundMusic.pause();
+                }
+            }
+        });
+
+
+        canvas.onclick = function (e) {
+            if (!isGameStarted || isGameOver) {
+                return;
+            }
+
+            var damageRange = Math.floor(Math.random() * (maxDamage - minDamage + 1));
+            var baseDamage = Math.floor(Math.random() * (damageRange + 1)) + minDamage;
+            var damage = baseDamage + Math.floor(Math.random() * (bonusDamage2 - bonusDamage1 + 1) + bonusDamage1);
+
+            var sizeMultiplier = 1; // Adjust this value based on how much you want the damage to affect the size
+            var size = 100 + sizeMultiplier * damage;
+            var b = {
+                x: player.x - size / 2 + 40, // Adjust the bullet's position to keep it centered
+                y: player.y - size / 2 - 20, // Adjust the bullet's position to keep it centered
+                speed: 12,
+                size: size,
+                img: bulletImg,
+                damage: damage,
+                fadeDelay: 5
+            };
+            bullets.push(b);
+
+            shotSound.currentTime = 0; // Reset the shot sound
+            shotSound.volume = 0.5;
+            shotSound.play();
+        }
+
+        gameLoop();
+    </script>
+</body>
+</html>
